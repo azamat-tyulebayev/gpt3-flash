@@ -9,6 +9,12 @@ from app import app, db
 from app.models import Card, User
 from app.forms import LoginForm, RegistrationForm
 
+import os
+import openai
+from random import randrange
+
+openai.api_key = ""
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -69,19 +75,45 @@ def new_card():
         all_topics = sorted(set([t.topic for t in u.posts.all()]))
         return render_template("new.html", all_topics=all_topics)
     else:
-        category = request.form["category"]      
+        #category = request.form["category"]      
         topic = request.form["topic"]
         question = request.form["question"]
+        
+        #openai.api_key = os.getenv("OPENAI_API_KEY")
 
-        if category == 'code':
+        category = ["Acrostic", "Acronym", "Story", "Simple Explanation"]
+
+        #random_index = randrange(len(category))
+        #print(category[random_index])
+        #category = category[random_index]
+
+        finalQuestion = question
+
+        for c in category:
+            response = openai.Completion.create(
+                engine="davinci",
+                prompt="Come up with an acrostic mnemonic device for the spelling of the word Psychology\nDescription: PSYCHOLOGY\nMnemonic Device: Please Say You Can Hit Old Ladies, Or Get Yogurt.\n\"\"\"\nCome up with an acrostic mnemonic device for the spelling for the Goal of Psychology\nDescription: Describe, Explain, Predict, and Control Behavior\nMnemonic Device: Don’t Eat Peanut Cookies, Boys\n\"\"\"\Come up with a story mnemonic device about the Hippocampus\nDescription: the brain structure (Hippocampus) that processes explicit memories (such as personal experiences)\nMnemonic Device: If you saw a Hippo on Campus, you would remember it\n\"\"\"Come up with a "+ c +" mnemonic device for " + topic + "\nDescription: " + question + "\nMnemonic Device:",
+                temperature=0.7,
+                max_tokens=100,
+                top_p=0.9,
+                frequency_penalty=0.18,
+                presence_penalty=0.2,
+                stop=["\"\"\""]
+            )
+
+            #print(response["choices"][0]["text"])
+
+            finalQuestion += "\nMnemonic(" + c + "):" + response["choices"][0]["text"]
+        
+        #if category == 'code':
             #using pygments to store code as html elements for highlighting.
-            question = highlight(question, PythonLexer(), HtmlFormatter())
+            #question = highlight(question, PythonLexer(), HtmlFormatter())
 
-        card = Card(category, topic, question, author=u)
+        card = Card(category[0], topic, finalQuestion, author=u)
         db.session.add(card)
         db.session.commit()
 
-        return redirect("/")
+        return render_template("new.html", topic=topic, question=finalQuestion, mnemonic=response["choices"][0]["text"])
 
 # All cards
 @app.route("/cards")
